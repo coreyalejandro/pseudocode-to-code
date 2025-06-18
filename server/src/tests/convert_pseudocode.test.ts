@@ -40,14 +40,16 @@ describe('convertPseudocode', () => {
     const pythonResult = result.results.find(r => r.language === 'python');
     expect(pythonResult).toBeDefined();
     expect(pythonResult!.output_type).toEqual('code');
-    expect(pythonResult!.generated_code).toContain('# Converted from pseudocode');
+    expect(pythonResult!.generated_code).toContain('# Generated Python code from pseudocode');
+    expect(pythonResult!.generated_code).toContain('SET x = 10');
     expect(pythonResult!.success).toBe(true);
     expect(pythonResult!.execution_time_ms).toBeGreaterThanOrEqual(1);
 
     const jsResult = result.results.find(r => r.language === 'javascript');
     expect(jsResult).toBeDefined();
     expect(jsResult!.output_type).toEqual('code');
-    expect(jsResult!.generated_code).toContain('// Converted from pseudocode');
+    expect(jsResult!.generated_code).toContain('// Generated JavaScript code from pseudocode');
+    expect(jsResult!.generated_code).toContain('SET x = 10');
     expect(jsResult!.success).toBe(true);
   });
 
@@ -120,7 +122,8 @@ describe('convertPseudocode', () => {
 
     expect(result.results).toHaveLength(1);
     expect(result.results[0].language).toEqual('java');
-    expect(result.results[0].generated_code).toContain('/* Converted from pseudocode');
+    expect(result.results[0].generated_code).toContain('// Generated Java code from pseudocode');
+    expect(result.results[0].generated_code).toContain('public class PseudocodeConverter');
     expect(result.results[0].success).toBe(true);
   });
 

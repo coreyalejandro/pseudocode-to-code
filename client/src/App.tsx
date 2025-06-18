@@ -180,6 +180,50 @@ function App() {
     }
   }, [audioFeedback]);
 
+  // Get visual indicator classes based on error indicators
+  const getVisualIndicatorClasses = useCallback((elementType: string) => {
+    const relevantErrors = errors.filter(error => 
+      error.visual_indicators?.includes(elementType)
+    );
+    
+    if (relevantErrors.length === 0) return '';
+    
+    const highestSeverity = relevantErrors.reduce((max, error) => {
+      const severityLevels = { low: 1, medium: 2, high: 3, critical: 4 };
+      return severityLevels[error.severity] > severityLevels[max.severity] ? error : max;
+    });
+    
+    switch (highestSeverity.severity) {
+      case 'critical':
+      case 'high':
+        return 'error-border animate-pulse';
+      case 'medium':
+        return 'border-red-500 border-2';
+      case 'low':
+        return 'border-yellow-500 border-2';
+      default:
+        return '';
+    }
+  }, [errors]);
+
+  // Enhanced audio feedback with more descriptive messages
+  const playEnhancedAudioFeedback = useCallback((errorLog?: ErrorLog) => {
+    if (!audioFeedback || !('speechSynthesis' in window)) return;
+    
+    const utterance = new SpeechSynthesisUtterance();
+    utterance.rate = 0.7;
+    utterance.pitch = 1.0;
+    utterance.volume = 0.8;
+    
+    if (errorLog) {
+      utterance.text = `Error: ${errorLog.user_friendly_message}. ${errorLog.fix_suggestions[0] || ''}`;
+    } else {
+      utterance.text = 'Conversion completed successfully. Results are ready.';
+    }
+    
+    speechSynthesis.speak(utterance);
+  }, [audioFeedback]);
+
   // Handle conversion
   const handleConvert = useCallback(async () => {
     if (!pseudocode.trim()) {
@@ -198,13 +242,13 @@ function App() {
           'Do not leave the input area empty',
           'Avoid submitting without any content'
         ],
-        visual_indicators: 'red_border_pseudocode_input',
+        visual_indicators: 'pseudocode_input',
         audio_feedback: 'error_sound',
         severity: 'medium',
         created_at: new Date()
       };
       setErrors([error]);
-      playAudioFeedback('error');
+      playEnhancedAudioFeedback(error);
       return;
     }
 
@@ -224,13 +268,13 @@ function App() {
           'Do not proceed without selecting any languages',
           'Avoid unchecking all language options'
         ],
-        visual_indicators: 'red_border_language_selector',
+        visual_indicators: 'language_selector',
         audio_feedback: 'error_sound',
         severity: 'medium',
         created_at: new Date()
       };
       setErrors([error]);
-      playAudioFeedback('error');
+      playEnhancedAudioFeedback(error);
       return;
     }
 
@@ -239,16 +283,16 @@ function App() {
     setErrors([]);
     playAudioFeedback('info');
 
-    // Simulate progress
+    // Simulate progress with realistic timing
     const progressInterval = setInterval(() => {
       setProgress(prev => {
         if (prev >= 90) {
           clearInterval(progressInterval);
           return 90;
         }
-        return prev + 10;
+        return prev + Math.random() * 15 + 5; // Variable progress speed
       });
-    }, 200);
+    }, 150);
 
     try {
       const conversionInput: CreateConversionRequestInput = {
@@ -266,9 +310,9 @@ function App() {
       
       if (result.errors.length > 0) {
         setErrors(result.errors);
-        playAudioFeedback('error');
+        result.errors.forEach(error => playEnhancedAudioFeedback(error));
       } else {
-        playAudioFeedback('success');
+        playEnhancedAudioFeedback();
       }
     } catch {
       const errorLog: ErrorLog = {
@@ -287,19 +331,19 @@ function App() {
           'Do not refresh the page immediately',
           'Avoid submitting the same request multiple times quickly'
         ],
-        visual_indicators: 'red_alert_banner',
+        visual_indicators: 'alert_banner',
         audio_feedback: 'error_sound',
         severity: 'high',
         created_at: new Date()
       };
       setErrors([errorLog]);
-      playAudioFeedback('error');
+      playEnhancedAudioFeedback(errorLog);
     } finally {
       clearInterval(progressInterval);
       setIsLoading(false);
       setProgress(0);
     }
-  }, [pseudocode, selectedLanguages, includeFlowchart, userId, accessibilityMode, voiceEnabled, playAudioFeedback]);
+  }, [pseudocode, selectedLanguages, includeFlowchart, userId, accessibilityMode, voiceEnabled, playAudioFeedback, playEnhancedAudioFeedback]);
 
   // Voice recognition
   const handleVoiceResult = useCallback((text: string) => {
@@ -421,34 +465,73 @@ function App() {
           </p>
         </div>
 
-        {/* Error Display */}
+        {/* Enhanced Error Display with Visual Indicators */}
         {errors.length > 0 && (
-          <div className="mb-6 space-y-3">
-            {errors.map((error: ErrorLog) => (
-              <Alert key={error.id} className={`${error.severity === 'high' || error.severity === 'critical' ? 'border-red-500 bg-red-50' : 'border-yellow-500 bg-yellow-50'}`}>
-                <AlertDescription>
-                  <div className="space-y-2">
-                    <p className="font-semibold text-red-700">{error.user_friendly_message}</p>
-                    <div>
-                      <p className="text-sm font-medium text-green-700 mb-1">✅ What to do:</p>
-                      <ul className="text-sm text-green-600 list-disc list-inside space-y-1">
-                        {error.fix_suggestions.map((suggestion: string, index: number) => (
-                          <li key={index}>{suggestion}</li>
-                        ))}
-                      </ul>
+          <div className={`mb-6 space-y-3 ${getVisualIndicatorClasses('alert_banner')}`}>
+            {errors.map((error: ErrorLog) => {
+              const severityColors = {
+                low: 'border-yellow-400 bg-yellow-50 text-yellow-800',
+                medium: 'border-orange-400 bg-orange-50 text-orange-800', 
+                high: 'border-red-500 bg-red-50 text-red-800',
+                critical: 'border-red-600 bg-red-100 text-red-900'
+              };
+              
+              const severityIcons = {
+                low: '⚠️',
+                medium: '⚠️',
+                high: '🚨',
+                critical: '🛑'
+              };
+              
+              return (
+                <Alert key={error.id} className={`${severityColors[error.severity]} transition-all duration-300 shadow-sm`}>
+                  <AlertDescription>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-2">
+                        <span className="text-lg" role="img" aria-label={`${error.severity} severity error`}>
+                          {severityIcons[error.severity]}
+                        </span>
+                        <div className="flex-1">
+                          <p className="font-semibold mb-2">{error.user_friendly_message}</p>
+                          
+                          {/* Fix Suggestions */}
+                          <div className="mb-3">
+                            <div className="flex items-center gap-1 mb-2">
+                              <span className="text-sm">✅</span>
+                              <p className="text-sm font-medium text-green-700">What to do:</p>
+                            </div>
+                            <ul className="text-sm text-green-600 space-y-1 ml-4">
+                              {error.fix_suggestions.map((suggestion: string, index: number) => (
+                                <li key={index} className="flex items-start gap-2">
+                                  <span className="text-green-500 mt-1">•</span>
+                                  <span>{suggestion}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          
+                          {/* Avoid Suggestions */}
+                          <div>
+                            <div className="flex items-center gap-1 mb-2">
+                              <span className="text-sm">❌</span>
+                              <p className="text-sm font-medium text-red-700">What to avoid:</p>
+                            </div>
+                            <ul className="text-sm text-red-600 space-y-1 ml-4">
+                              {error.avoid_suggestions.map((suggestion: string, index: number) => (
+                                <li key={index} className="flex items-start gap-2">
+                                  <span className="text-red-500 mt-1">•</span>
+                                  <span>{suggestion}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-red-700 mb-1">❌ What to avoid:</p>
-                      <ul className="text-sm text-red-600 list-disc list-inside space-y-1">
-                        {error.avoid_suggestions.map((suggestion: string, index: number) => (
-                          <li key={index}>{suggestion}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            ))}
+                  </AlertDescription>
+                </Alert>
+              );
+            })}
           </div>
         )}
 
@@ -519,8 +602,8 @@ function App() {
               </CardContent>
             </Card>
 
-            {/* Language Selection */}
-            <Card>
+            {/* Language Selection with Visual Error Indicators */}
+            <Card className={getVisualIndicatorClasses('language_selector')}>
               <CardHeader>
                 <CardTitle className="text-lg">🔧 Target Languages</CardTitle>
               </CardHeader>
@@ -538,12 +621,23 @@ function App() {
                             handleLanguageToggle(lang);
                           }
                         }}
+                        className="focus-visible:ring-2 focus-visible:ring-blue-500"
                       />
-                      <Label htmlFor={lang} className="capitalize">
+                      <Label htmlFor={lang} className="capitalize cursor-pointer">
                         {lang === 'csharp' ? 'C#' : lang === 'cpp' ? 'C++' : lang}
                       </Label>
                     </div>
                   ))}
+                </div>
+                
+                {/* Language Selection Status */}
+                <div className="mt-3 p-2 bg-blue-50 rounded-md">
+                  <p className="text-sm text-blue-700">
+                    {selectedLanguages.length === 0 
+                      ? '⚠️ No languages selected' 
+                      : `✅ ${selectedLanguages.length} language${selectedLanguages.length > 1 ? 's' : ''} selected`
+                    }
+                  </p>
                 </div>
 
                 <Separator className="my-4" />
@@ -559,8 +653,9 @@ function App() {
                         setIncludeFlowchart(false);
                       }
                     }}
+                    className="focus-visible:ring-2 focus-visible:ring-blue-500"
                   />
-                  <Label htmlFor="flowchart">Include Flowchart</Label>
+                  <Label htmlFor="flowchart" className="cursor-pointer">Include Mermaid Flowchart</Label>
                 </div>
               </CardContent>
             </Card>
@@ -578,21 +673,50 @@ function App() {
                   <div className="relative">
                     <Textarea
                       value={pseudocode}
-                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPseudocode(e.target.value)}
-                      placeholder="Enter your pseudocode here...&#10;&#10;Example:&#10;START&#10;INPUT number&#10;IF number > 0 THEN&#10;    PRINT 'Positive'&#10;ELSE&#10;    PRINT 'Not positive'&#10;END IF&#10;END"
-                      className={`min-h-[200px] resize-none ${errors.some(e => e.visual_indicators === 'red_border_pseudocode_input') ? 'border-red-500' : ''}`}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                        setPseudocode(e.target.value);
+                        // Clear pseudocode-related errors when user starts typing
+                        if (e.target.value.trim() && errors.some(err => err.visual_indicators?.includes('pseudocode_input'))) {
+                          setErrors(prev => prev.filter(err => !err.visual_indicators?.includes('pseudocode_input')));
+                        }
+                      }}
+                      placeholder="Enter your pseudocode here...&#10;&#10;Example:&#10;START&#10;INPUT number&#10;IF number > 0 THEN&#10;    PRINT 'Positive'&#10;ELSE IF number < 0 THEN&#10;    PRINT 'Negative'&#10;ELSE&#10;    PRINT 'Zero'&#10;END IF&#10;END"
+                      className={`min-h-[200px] resize-none transition-all duration-200 ${getVisualIndicatorClasses('pseudocode_input')} focus-visible:ring-2 focus-visible:ring-blue-500`}
+                      aria-describedby="pseudocode-help"
                     />
+                    
+                    {/* Character count and status */}
+                    <div className="absolute bottom-2 left-2 text-xs text-gray-500 bg-white px-2 py-1 rounded">
+                      {pseudocode.length} characters
+                      {pseudocode.trim().length === 0 && (
+                        <span className="text-red-500 ml-2">• Empty</span>
+                      )}
+                    </div>
+                    
                     {voiceEnabled && isSupported && (
                       <Button
                         type="button"
                         variant={isListening ? "destructive" : "outline"}
                         size="sm"
-                        className="absolute top-2 right-2"
+                        className={`absolute top-2 right-2 transition-all duration-200 ${isListening ? 'voice-listening animate-pulse' : ''}`}
                         onClick={isListening ? stopListening : startListening}
+                        aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
                       >
                         {isListening ? '🔴 Stop' : '🎤 Voice'}
                       </Button>
                     )}
+                  </div>
+                  
+                  {/* Pseudocode help text */}
+                  <div id="pseudocode-help" className="text-sm text-gray-600 mt-2">
+                    <p className="font-medium mb-1">💡 Pseudocode Tips:</p>
+                    <ul className="text-xs space-y-1 list-disc list-inside">
+                      <li>Use START/END to mark the beginning and end</li>
+                      <li>Use INPUT/OUTPUT for user interaction</li>
+                      <li>Use IF/THEN/ELSE for conditions</li>
+                      <li>Use WHILE/FOR for loops</li>
+                      <li>Keep statements simple and clear</li>
+                    </ul>
                   </div>
 
                   <div className="flex flex-wrap gap-2">

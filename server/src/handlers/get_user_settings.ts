@@ -6,13 +6,41 @@ import { eq } from 'drizzle-orm';
 
 export const getUserSettings = async (userId: string): Promise<UserSettings> => {
   try {
-    const result = await db.select()
+    let result = await db.select()
       .from(userSettingsTable)
       .where(eq(userSettingsTable.user_id, userId))
       .execute();
 
     if (result.length === 0) {
-      throw new Error(`User settings not found for user_id: ${userId}`);
+      try {
+        // Create default settings for new user
+        const defaultSettings = await db.insert(userSettingsTable)
+          .values({
+            user_id: userId,
+            accessibility_mode: 'standard',
+            voice_enabled: false,
+            preferred_languages: JSON.stringify(['python']),
+            font_size: 16,
+            high_contrast: false,
+            audio_feedback: false,
+            error_verbosity: 'standard',
+            updated_at: new Date()
+          })
+          .returning()
+          .execute();
+
+        result = defaultSettings;
+      } catch (insertError) {
+        // If insertion fails due to race condition, try to select again
+        result = await db.select()
+          .from(userSettingsTable)
+          .where(eq(userSettingsTable.user_id, userId))
+          .execute();
+          
+        if (result.length === 0) {
+          throw insertError;
+        }
+      }
     }
 
     const settings = result[0];

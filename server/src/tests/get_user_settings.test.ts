@@ -62,9 +62,20 @@ describe('getUserSettings', () => {
     expect(result.error_verbosity).toEqual('standard');
   });
 
-  it('should throw error for non-existent user', async () => {
-    expect(getUserSettings('non-existent-user'))
-      .rejects.toThrow(/User settings not found for user_id/i);
+  it('should create default settings for non-existent user', async () => {
+    const result = await getUserSettings('non-existent-user');
+    
+    expect(result.user_id).toEqual('non-existent-user');
+    expect(result.accessibility_mode).toEqual('standard');
+    expect(result.voice_enabled).toEqual(false);
+    expect(result.preferred_languages).toEqual(['python']);
+    expect(result.font_size).toEqual(16);
+    expect(result.high_contrast).toEqual(false);
+    expect(result.audio_feedback).toEqual(false);
+    expect(result.error_verbosity).toEqual('standard');
+    expect(result.id).toBeDefined();
+    expect(result.created_at).toBeInstanceOf(Date);
+    expect(result.updated_at).toBeInstanceOf(Date);
   });
 
   it('should parse JSON preferred languages correctly', async () => {
