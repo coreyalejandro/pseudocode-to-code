@@ -42,7 +42,7 @@ describe('convertPseudocode', () => {
     expect(pythonResult!.output_type).toEqual('code');
     expect(pythonResult!.generated_code).toContain('# Converted from pseudocode');
     expect(pythonResult!.success).toBe(true);
-    expect(pythonResult!.execution_time_ms).toBeGreaterThan(0);
+    expect(pythonResult!.execution_time_ms).toBeGreaterThanOrEqual(1);
 
     const jsResult = result.results.find(r => r.language === 'javascript');
     expect(jsResult).toBeDefined();
