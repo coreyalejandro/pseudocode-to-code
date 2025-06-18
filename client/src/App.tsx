@@ -195,12 +195,13 @@ function App() {
     
     switch (highestSeverity.severity) {
       case 'critical':
+        return 'critical-border neuro-error';
       case 'high':
-        return 'error-border animate-pulse';
+        return 'error-border neuro-error animate-pulse';
       case 'medium':
-        return 'border-red-500 border-2';
+        return 'border-red-500 border-2 ring-2 ring-red-300 ring-opacity-50';
       case 'low':
-        return 'border-yellow-500 border-2';
+        return 'warning-border ring-2 ring-yellow-300 ring-opacity-50';
       default:
         return '';
     }
@@ -216,9 +217,23 @@ function App() {
     utterance.volume = 0.8;
     
     if (errorLog) {
-      utterance.text = `Error: ${errorLog.user_friendly_message}. ${errorLog.fix_suggestions[0] || ''}`;
+      // Enhanced error-specific audio feedback
+      let message = `Error with ${errorLog.severity} severity: ${errorLog.user_friendly_message}`;
+      
+      if (errorLog.fix_suggestions.length > 0) {
+        message += `. Here's what to do: ${errorLog.fix_suggestions[0]}`;
+      }
+      
+      // Add additional context based on error type
+      if (errorLog.visual_indicators?.includes('pseudocode_input')) {
+        message += '. Please check your pseudocode input area.';
+      } else if (errorLog.visual_indicators?.includes('language_selector')) {
+        message += '. Please review your language selection.';
+      }
+      
+      utterance.text = message;
     } else {
-      utterance.text = 'Conversion completed successfully. Results are ready.';
+      utterance.text = 'Conversion completed successfully. All results are ready for review.';
     }
     
     speechSynthesis.speak(utterance);
@@ -698,11 +713,25 @@ function App() {
                         type="button"
                         variant={isListening ? "destructive" : "outline"}
                         size="sm"
-                        className={`absolute top-2 right-2 transition-all duration-200 ${isListening ? 'voice-listening animate-pulse' : ''}`}
+                        className={`absolute top-2 right-2 transition-all duration-200 ${
+                          isListening 
+                            ? 'voice-listening animate-pulse border-red-500 shadow-lg shadow-red-500/50 ring-2 ring-red-300' 
+                            : 'hover:border-blue-500 hover:shadow-md hover:shadow-blue-500/25'
+                        }`}
                         onClick={isListening ? stopListening : startListening}
                         aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
                       >
-                        {isListening ? '🔴 Stop' : '🎤 Voice'}
+                        {isListening ? (
+                          <span className="flex items-center gap-1">
+                            <span className="animate-pulse">🔴</span>
+                            <span>Recording</span>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <span>🎤</span>
+                            <span>Voice</span>
+                          </span>
+                        )}
                       </Button>
                     )}
                   </div>

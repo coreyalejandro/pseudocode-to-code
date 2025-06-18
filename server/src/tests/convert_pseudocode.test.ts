@@ -41,7 +41,8 @@ describe('convertPseudocode', () => {
     expect(pythonResult).toBeDefined();
     expect(pythonResult!.output_type).toEqual('code');
     expect(pythonResult!.generated_code).toContain('# Generated Python code from pseudocode');
-    expect(pythonResult!.generated_code).toContain('SET x = 10');
+    expect(pythonResult!.generated_code).toContain('x = 10');
+    expect(pythonResult!.generated_code).toContain('print(x)');
     expect(pythonResult!.success).toBe(true);
     expect(pythonResult!.execution_time_ms).toBeGreaterThanOrEqual(1);
 
@@ -49,7 +50,8 @@ describe('convertPseudocode', () => {
     expect(jsResult).toBeDefined();
     expect(jsResult!.output_type).toEqual('code');
     expect(jsResult!.generated_code).toContain('// Generated JavaScript code from pseudocode');
-    expect(jsResult!.generated_code).toContain('SET x = 10');
+    expect(jsResult!.generated_code).toContain('let x = 10');
+    expect(jsResult!.generated_code).toContain('console.log(x)');
     expect(jsResult!.success).toBe(true);
   });
 
@@ -146,5 +148,62 @@ describe('convertPseudocode', () => {
 
     expect(result.errors).toHaveLength(0);
     expect(Array.isArray(result.errors)).toBe(true);
+  });
+
+  it('should handle complex pseudocode with control structures', async () => {
+    const complexInput: CreateConversionRequestInput = {
+      pseudocode: `START
+        INPUT number
+        IF number > 0 THEN
+          PRINT "Positive"
+        ELSE
+          PRINT "Not positive"
+        END IF
+        FOR i FROM 1 TO 3
+          PRINT i
+        END FOR
+        END`,
+      target_languages: ['python'],
+      include_flowchart: true,
+      accessibility_mode: 'standard',
+      voice_enabled: false
+    };
+
+    const result = await convertPseudocode(complexInput);
+
+    expect(result.results).toHaveLength(2); // 1 language + 1 flowchart
+    
+    const pythonResult = result.results.find(r => r.language === 'python');
+    expect(pythonResult).toBeDefined();
+    expect(pythonResult!.generated_code).toContain('input("Enter number: ")');
+    expect(pythonResult!.generated_code).toContain('if number > 0:');
+    expect(pythonResult!.generated_code).toContain('else:');
+    expect(pythonResult!.generated_code).toContain('for i in range(1, 3 + 1, 1):');
+    expect(pythonResult!.success).toBe(true);
+
+    const flowchartResult = result.results.find(r => r.language === 'mermaid');
+    expect(flowchartResult).toBeDefined();
+    expect(flowchartResult!.generated_code).toContain('graph TD');
+    expect(flowchartResult!.generated_code).toContain('Input: number');
+    expect(flowchartResult!.generated_code).toContain('number > 0');
+    expect(flowchartResult!.success).toBe(true);
+  });
+
+  it('should handle parsing errors gracefully', async () => {
+    const invalidInput: CreateConversionRequestInput = {
+      pseudocode: 'this is not valid pseudocode',
+      target_languages: ['python'],
+      include_flowchart: false,
+      accessibility_mode: 'standard',
+      voice_enabled: false
+    };
+
+    const result = await convertPseudocode(invalidInput);
+
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].success).toBe(false);
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors[0].error_type).toEqual('conversion_error');
+    expect(result.errors[0].user_friendly_message).toContain('Could not understand the pseudocode structure');
   });
 });

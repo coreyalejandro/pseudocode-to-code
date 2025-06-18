@@ -4,9 +4,21 @@
 @import 'tailwindcss/utilities';
 
 @layer components {
-  /* Voice recognition indicator */
+  /* Voice recognition indicator with enhanced animation */
   .voice-listening {
-    @apply animate-pulse border-red-500 shadow-lg shadow-red-500/25;
+    @apply animate-pulse border-red-500 shadow-lg shadow-red-500/50;
+    animation: voice-pulse 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes voice-pulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+      border-color: rgb(239, 68, 68);
+    }
+    50% {
+      box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+      border-color: rgb(220, 38, 38);
+    }
   }
   
   /* High contrast mode adjustments */

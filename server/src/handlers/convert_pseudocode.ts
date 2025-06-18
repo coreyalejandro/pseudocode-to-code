@@ -23,11 +23,16 @@ interface Statement {
   startValue?: string;
   endValue?: string;
   step?: string;
+  lineNumber?: number;
 }
 
-// Enhanced pseudocode parser
+// Enhanced pseudocode parser with better error handling
 const parsePseudocode = (pseudocode: string): ParsedPseudocode => {
-  const lines = pseudocode.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+  const lines = pseudocode.split('\n').map((line, index) => ({ 
+    content: line.trim(), 
+    number: index + 1 
+  })).filter(line => line.content.length > 0);
+  
   const statements: Statement[] = [];
   const variables = new Set<string>();
   let hasInput = false;
@@ -38,115 +43,174 @@ const parsePseudocode = (pseudocode: string): ParsedPseudocode => {
     const blockStatements: Statement[] = [];
     
     while (i < lines.length) {
-      const line = lines[i].toUpperCase();
-      const originalLine = lines[i];
+      const line = lines[i].content.toUpperCase();
+      const originalLine = lines[i].content;
+      const lineNumber = lines[i].number;
       
-      // Check for end tokens
-      if (endTokens.some(token => line.startsWith(token))) {
-        break;
+      // Check for end tokens first
+      if (endTokens.length > 0) {
+        for (const token of endTokens) {
+          if (line === token || line.startsWith(token + ' ')) {
+            return blockStatements;
+          }
+        }
       }
       
       // START/END statements
       if (line === 'START' || line === 'BEGIN') {
-        blockStatements.push({ type: 'start', content: originalLine });
-      } else if (line === 'END' || line === 'STOP') {
-        blockStatements.push({ type: 'end', content: originalLine });
+        blockStatements.push({ 
+          type: 'start', 
+          content: originalLine, 
+          lineNumber 
+        });
+      } 
+      else if (line === 'END' || line === 'STOP') {
+        blockStatements.push({ 
+          type: 'end', 
+          content: originalLine, 
+          lineNumber 
+        });
       }
       // Comments
       else if (line.startsWith('//') || line.startsWith('#') || line.startsWith('/*')) {
-        blockStatements.push({ type: 'comment', content: originalLine });
+        blockStatements.push({ 
+          type: 'comment', 
+          content: originalLine, 
+          lineNumber 
+        });
       }
       // Input statements
       else if (line.startsWith('INPUT ') || line.startsWith('READ ') || line.startsWith('GET ')) {
         hasInput = true;
-        const variable = originalLine.split(/\s+/)[1];
-        variables.add(variable);
-        blockStatements.push({ 
-          type: 'input', 
-          content: originalLine, 
-          variable: variable 
-        });
+        const parts = originalLine.split(/\s+/);
+        if (parts.length >= 2) {
+          const variable = parts[1];
+          variables.add(variable);
+          blockStatements.push({ 
+            type: 'input', 
+            content: originalLine, 
+            variable: variable,
+            lineNumber 
+          });
+        }
       }
       // Output statements
       else if (line.startsWith('OUTPUT ') || line.startsWith('PRINT ') || line.startsWith('DISPLAY ') || line.startsWith('WRITE ')) {
         hasOutput = true;
-        const message = originalLine.substring(originalLine.indexOf(' ') + 1);
+        const spaceIndex = originalLine.indexOf(' ');
+        const message = spaceIndex >= 0 ? originalLine.substring(spaceIndex + 1) : '';
         blockStatements.push({ 
           type: 'output', 
           content: originalLine, 
-          message: message 
+          message: message,
+          lineNumber 
         });
       }
-      // Assignment statements
+      // Assignment statements - handle multiple assignment operators
       else if (originalLine.includes('=') || originalLine.includes('<-') || originalLine.includes(':=')) {
-        const parts = originalLine.split(/\s*(?:=|<-|:=)\s*/);
+        let separator = '=';
+        if (originalLine.includes('<-')) separator = '<-';
+        else if (originalLine.includes(':=')) separator = ':=';
+        
+        const parts = originalLine.split(separator);
         if (parts.length === 2) {
           const variable = parts[0].trim();
           const value = parts[1].trim();
-          variables.add(variable);
+          
+          // Handle SET keyword
+          const cleanVariable = variable.startsWith('SET ') ? variable.substring(4) : variable;
+          variables.add(cleanVariable);
+          
           blockStatements.push({ 
             type: 'assignment', 
             content: originalLine, 
-            variable: variable, 
-            value: value 
+            variable: cleanVariable, 
+            value: value,
+            lineNumber 
           });
         }
       }
-      // IF statements
+      // IF statements with better parsing
       else if (line.startsWith('IF ')) {
-        const condition = originalLine.substring(3, originalLine.indexOf(' THEN'));
-        i++; // Move to next line
-        const ifBody = parseBlock(['ELSE', 'END IF', 'ENDIF']);
-        
-        let elseBody: Statement[] = [];
-        if (i < lines.length && lines[i].toUpperCase().startsWith('ELSE')) {
-          i++; // Skip ELSE line
-          elseBody = parseBlock(['END IF', 'ENDIF']);
-        }
-        
-        blockStatements.push({
-          type: 'if',
-          content: originalLine,
-          condition: condition,
-          body: ifBody,
-          elseBody: elseBody
-        });
-        
-        // Skip END IF
-        if (i < lines.length && (lines[i].toUpperCase().startsWith('END IF') || lines[i].toUpperCase().startsWith('ENDIF'))) {
-          // Don't increment i here, let the main loop handle it
+        const thenIndex = line.indexOf(' THEN');
+        if (thenIndex > 0) {
+          const condition = originalLine.substring(3, originalLine.toUpperCase().indexOf(' THEN'));
+          i++; // Move to next line for IF body
+          
+          const ifBody = parseBlock(['ELSE IF', 'ELSEIF', 'ELSE', 'END IF', 'ENDIF']);
+          let elseBody: Statement[] = [];
+          
+          // Handle ELSE IF and ELSE
+          if (i < lines.length) {
+            const currentLine = lines[i].content.toUpperCase();
+            if (currentLine.startsWith('ELSE IF') || currentLine.startsWith('ELSEIF')) {
+              // For now, treat ELSE IF as just ELSE (could be enhanced further)
+              i++; // Skip ELSE IF line
+              elseBody = parseBlock(['END IF', 'ENDIF']);
+            } else if (currentLine.startsWith('ELSE')) {
+              i++; // Skip ELSE line
+              elseBody = parseBlock(['END IF', 'ENDIF']);
+            }
+          }
+          
+          blockStatements.push({
+            type: 'if',
+            content: originalLine,
+            condition: condition,
+            body: ifBody,
+            elseBody: elseBody,
+            lineNumber
+          });
+          
+          // Skip END IF
+          if (i < lines.length && 
+              (lines[i].content.toUpperCase() === 'END IF' || 
+               lines[i].content.toUpperCase() === 'ENDIF')) {
+            i++; // Skip the END IF line
+            continue; // Don't increment i again at the end of loop
+          }
         }
       }
       // WHILE loops
       else if (line.startsWith('WHILE ')) {
-        const condition = originalLine.substring(6);
-        i++; // Move to next line
+        const doIndex = line.indexOf(' DO');
+        const condition = doIndex > 0 
+          ? originalLine.substring(6, originalLine.toUpperCase().indexOf(' DO'))
+          : originalLine.substring(6);
+        
+        i++; // Move to next line for WHILE body
         const body = parseBlock(['END WHILE', 'ENDWHILE']);
         
         blockStatements.push({
           type: 'while',
           content: originalLine,
           condition: condition,
-          body: body
+          body: body,
+          lineNumber
         });
         
         // Skip END WHILE
-        if (i < lines.length && (lines[i].toUpperCase().startsWith('END WHILE') || lines[i].toUpperCase().startsWith('ENDWHILE'))) {
-          // Don't increment i here, let the main loop handle it
+        if (i < lines.length && 
+            (lines[i].content.toUpperCase() === 'END WHILE' || 
+             lines[i].content.toUpperCase() === 'ENDWHILE')) {
+          i++; // Skip the END WHILE line
+          continue; // Don't increment i again at the end of loop
         }
       }
-      // FOR loops
+      // FOR loops with enhanced parsing
       else if (line.startsWith('FOR ')) {
-        // Parse FOR loop: FOR i = 1 TO 10 or FOR i FROM 1 TO 10
-        const forParts = originalLine.match(/FOR\s+(\w+)\s+(?:=|FROM)\s+(.+?)\s+TO\s+(.+?)(?:\s+STEP\s+(.+))?$/i);
-        if (forParts) {
-          const loopVariable = forParts[1];
-          const startValue = forParts[2];
-          const endValue = forParts[3];
-          const step = forParts[4] || '1';
+        // Enhanced regex to handle different FOR loop formats
+        const forPattern = /FOR\s+(\w+)\s+(?:=|FROM)\s+(.+?)\s+TO\s+(.+?)(?:\s+STEP\s+(.+?))?$/i;
+        const forMatch = originalLine.match(forPattern);
+        
+        if (forMatch) {
+          const loopVariable = forMatch[1];
+          const startValue = forMatch[2];
+          const endValue = forMatch[3];
+          const step = forMatch[4] || '1';
           
           variables.add(loopVariable);
-          i++; // Move to next line
+          i++; // Move to next line for FOR body
           const body = parseBlock(['NEXT', 'END FOR', 'ENDFOR']);
           
           blockStatements.push({
@@ -156,12 +220,17 @@ const parsePseudocode = (pseudocode: string): ParsedPseudocode => {
             startValue: startValue,
             endValue: endValue,
             step: step,
-            body: body
+            body: body,
+            lineNumber
           });
           
           // Skip NEXT/END FOR
-          if (i < lines.length && (lines[i].toUpperCase().startsWith('NEXT') || lines[i].toUpperCase().startsWith('END FOR') || lines[i].toUpperCase().startsWith('ENDFOR'))) {
-            // Don't increment i here, let the main loop handle it
+          if (i < lines.length) {
+            const endLine = lines[i].content.toUpperCase();
+            if (endLine.startsWith('NEXT') || endLine === 'END FOR' || endLine === 'ENDFOR') {
+              i++; // Skip the end line
+              continue; // Don't increment i again at the end of loop
+            }
           }
         }
       }
@@ -172,7 +241,12 @@ const parsePseudocode = (pseudocode: string): ParsedPseudocode => {
     return blockStatements;
   };
 
-  statements.push(...parseBlock());
+  try {
+    statements.push(...parseBlock());
+  } catch (error) {
+    console.error('Parsing error:', error);
+    // Return partial parsing results even if there's an error
+  }
   
   return {
     statements,
@@ -182,7 +256,7 @@ const parsePseudocode = (pseudocode: string): ParsedPseudocode => {
   };
 };
 
-// Code generators for each language
+// Enhanced code generators for each language
 const generatePythonCode = (parsed: ParsedPseudocode): string => {
   let code = '# Generated Python code from pseudocode\n\n';
   
@@ -193,19 +267,21 @@ const generatePythonCode = (parsed: ParsedPseudocode): string => {
     for (const stmt of statements) {
       switch (stmt.type) {
         case 'comment':
-          result += `${indentStr}# ${stmt.content}\n`;
+          result += `${indentStr}# ${stmt.content.replace(/^(\/\/|#|\/*|\*\/)/, '').trim()}\n`;
           break;
         case 'input':
           result += `${indentStr}${stmt.variable} = input("Enter ${stmt.variable}: ")\n`;
           break;
         case 'output':
-          const message = stmt.message?.replace(/'/g, '"') || '';
-          if (message.includes('"') && !message.startsWith('"')) {
-            // Variable or expression
+          const message = stmt.message || '';
+          // Handle both string literals and variables
+          if (message.startsWith('"') || message.startsWith("'")) {
+            result += `${indentStr}print(${message})\n`;
+          } else if (message && !message.includes('"') && !message.includes("'")) {
+            // Likely a variable or expression
             result += `${indentStr}print(${message})\n`;
           } else {
-            // String literal
-            result += `${indentStr}print(${message})\n`;
+            result += `${indentStr}print("${message}")\n`;
           }
           break;
         case 'assignment':
@@ -213,19 +289,23 @@ const generatePythonCode = (parsed: ParsedPseudocode): string => {
           break;
         case 'if':
           result += `${indentStr}if ${stmt.condition}:\n`;
-          result += generateStatements(stmt.body || [], indent + 1);
+          const ifBody = generateStatements(stmt.body || [], indent + 1);
+          result += ifBody || `${indentStr}    pass\n`;
           if (stmt.elseBody && stmt.elseBody.length > 0) {
             result += `${indentStr}else:\n`;
-            result += generateStatements(stmt.elseBody, indent + 1);
+            const elseBody = generateStatements(stmt.elseBody, indent + 1);
+            result += elseBody || `${indentStr}    pass\n`;
           }
           break;
         case 'while':
           result += `${indentStr}while ${stmt.condition}:\n`;
-          result += generateStatements(stmt.body || [], indent + 1);
+          const whileBody = generateStatements(stmt.body || [], indent + 1);
+          result += whileBody || `${indentStr}    pass\n`;
           break;
         case 'for':
           result += `${indentStr}for ${stmt.loopVariable} in range(${stmt.startValue}, ${stmt.endValue} + 1, ${stmt.step}):\n`;
-          result += generateStatements(stmt.body || [], indent + 1);
+          const forBody = generateStatements(stmt.body || [], indent + 1);
+          result += forBody || `${indentStr}    pass\n`;
           break;
       }
     }
@@ -233,7 +313,16 @@ const generatePythonCode = (parsed: ParsedPseudocode): string => {
     return result;
   };
   
+  // Add main execution guard
   code += generateStatements(parsed.statements);
+  
+  // Add main function wrapper if we have input/output or complex logic
+  if (parsed.hasInput || parsed.hasOutput || parsed.statements.length > 2) {
+    code = '# Generated Python code from pseudocode\n\ndef main():\n' + 
+           generateStatements(parsed.statements, 1) +
+           '\nif __name__ == "__main__":\n    main()\n';
+  }
+  
   return code;
 };
 
@@ -242,20 +331,35 @@ const generateJavaScriptCode = (parsed: ParsedPseudocode): string => {
   
   if (parsed.hasInput) {
     code += 'const readline = require(\'readline\');\n';
-    code += 'const rl = readline.createInterface({ input: process.stdin, output: process.stdout });\n\n';
+    code += 'const rl = readline.createInterface({\n';
+    code += '    input: process.stdin,\n';
+    code += '    output: process.stdout\n';
+    code += '});\n\n';
+    code += 'function askQuestion(question) {\n';
+    code += '    return new Promise(resolve => {\n';
+    code += '        rl.question(question, resolve);\n';
+    code += '    });\n';
+    code += '}\n\n';
+    code += 'async function main() {\n';
+  } else {
+    code += 'function main() {\n';
   }
   
-  const generateStatements = (statements: Statement[], indent = 0): string => {
+  const generateStatements = (statements: Statement[], indent = 1): string => {
     let result = '';
     const indentStr = '    '.repeat(indent);
     
     for (const stmt of statements) {
       switch (stmt.type) {
         case 'comment':
-          result += `${indentStr}// ${stmt.content}\n`;
+          result += `${indentStr}// ${stmt.content.replace(/^(\/\/|#|\/*|\*\/)/, '').trim()}\n`;
           break;
         case 'input':
-          result += `${indentStr}let ${stmt.variable} = prompt("Enter ${stmt.variable}:");\n`;
+          if (parsed.hasInput) {
+            result += `${indentStr}let ${stmt.variable} = await askQuestion("Enter ${stmt.variable}: ");\n`;
+          } else {
+            result += `${indentStr}let ${stmt.variable} = prompt("Enter ${stmt.variable}:");\n`;
+          }
           break;
         case 'output':
           const message = stmt.message || '';
@@ -291,6 +395,14 @@ const generateJavaScriptCode = (parsed: ParsedPseudocode): string => {
   };
   
   code += generateStatements(parsed.statements);
+  code += '}\n\n';
+  
+  if (parsed.hasInput) {
+    code += 'main().then(() => rl.close());\n';
+  } else {
+    code += 'main();\n';
+  }
+  
   return code;
 };
 
@@ -311,7 +423,7 @@ const generateJavaCode = (parsed: ParsedPseudocode): string => {
     for (const stmt of statements) {
       switch (stmt.type) {
         case 'comment':
-          result += `${indentStr}// ${stmt.content}\n`;
+          result += `${indentStr}// ${stmt.content.replace(/^(\/\/|#|\/*|\*\/)/, '').trim()}\n`;
           break;
         case 'input':
           result += `${indentStr}System.out.print("Enter ${stmt.variable}: ");\n`;
@@ -351,6 +463,11 @@ const generateJavaCode = (parsed: ParsedPseudocode): string => {
   };
   
   code += generateStatements(parsed.statements);
+  
+  if (parsed.hasInput) {
+    code += '        scanner.close();\n';
+  }
+  
   code += '    }\n';
   code += '}\n';
   
@@ -370,7 +487,7 @@ const generateCSharpCode = (parsed: ParsedPseudocode): string => {
     for (const stmt of statements) {
       switch (stmt.type) {
         case 'comment':
-          result += `${indentStr}// ${stmt.content}\n`;
+          result += `${indentStr}// ${stmt.content.replace(/^(\/\/|#|\/*|\*\/)/, '').trim()}\n`;
           break;
         case 'input':
           result += `${indentStr}Console.Write("Enter ${stmt.variable}: ");\n`;
@@ -430,7 +547,7 @@ const generateCppCode = (parsed: ParsedPseudocode): string => {
     for (const stmt of statements) {
       switch (stmt.type) {
         case 'comment':
-          result += `${indentStr}// ${stmt.content}\n`;
+          result += `${indentStr}// ${stmt.content.replace(/^(\/\/|#|\/*|\*\/)/, '').trim()}\n`;
           break;
         case 'input':
           result += `${indentStr}cout << "Enter ${stmt.variable}: ";\n`;
@@ -501,7 +618,7 @@ const generateGoCode = (parsed: ParsedPseudocode): string => {
     for (const stmt of statements) {
       switch (stmt.type) {
         case 'comment':
-          result += `${indentStr}// ${stmt.content}\n`;
+          result += `${indentStr}// ${stmt.content.replace(/^(\/\/|#|\/*|\*\/)/, '').trim()}\n`;
           break;
         case 'input':
           result += `${indentStr}fmt.Print("Enter ${stmt.variable}: ")\n`;
@@ -561,17 +678,21 @@ const generateRustCode = (parsed: ParsedPseudocode): string => {
     for (const stmt of statements) {
       switch (stmt.type) {
         case 'comment':
-          result += `${indentStr}// ${stmt.content}\n`;
+          result += `${indentStr}// ${stmt.content.replace(/^(\/\/|#|\/*|\*\/)/, '').trim()}\n`;
           break;
         case 'input':
           result += `${indentStr}println!("Enter ${stmt.variable}: ");\n`;
-          result += `${indentStr}let mut ${stmt.variable} = String::new();\n`;
-          result += `${indentStr}io::stdin().read_line(&mut ${stmt.variable}).expect("Failed to read line");\n`;
-          result += `${indentStr}let ${stmt.variable} = ${stmt.variable}.trim();\n`;
+          result += `${indentStr}let mut ${stmt.variable}_input = String::new();\n`;
+          result += `${indentStr}io::stdin().read_line(&mut ${stmt.variable}_input).expect("Failed to read line");\n`;
+          result += `${indentStr}let ${stmt.variable} = ${stmt.variable}_input.trim();\n`;
           break;
         case 'output':
           const message = stmt.message || '';
-          result += `${indentStr}println!("{}", ${message});\n`;
+          if (message.startsWith('"') && message.endsWith('"')) {
+            result += `${indentStr}println!(${message});\n`;
+          } else {
+            result += `${indentStr}println!("{}", ${message});\n`;
+          }
           break;
         case 'assignment':
           result += `${indentStr}let ${stmt.variable} = ${stmt.value};\n`;
@@ -608,7 +729,7 @@ const generateRustCode = (parsed: ParsedPseudocode): string => {
   return code;
 };
 
-// Enhanced code conversion function
+// Enhanced code conversion function with better error handling
 const convertToLanguage = async (pseudocode: string, language: string): Promise<{ code: string; executionTime: number }> => {
   const startTime = Date.now();
   
@@ -655,7 +776,7 @@ const convertToLanguage = async (pseudocode: string, language: string): Promise<
   }
 };
 
-// Enhanced flowchart generation function
+// Enhanced flowchart generation function with better node connection logic
 const generateFlowchart = async (pseudocode: string): Promise<{ code: string; executionTime: number }> => {
   const startTime = Date.now();
   
@@ -668,143 +789,142 @@ const generateFlowchart = async (pseudocode: string): Promise<{ code: string; ex
     
     let flowchart = 'graph TD\n';
     let nodeId = 1;
-    const nodeMap = new Map<string, number>();
     
-    const generateFlowchartNodes = (statements: Statement[], parentId?: number): number => {
+    const generateFlowchartNodes = (statements: Statement[], parentId?: number): { startId: number; endId: number } => {
       let currentId = parentId || nodeId++;
+      let firstId = currentId;
       let lastId = currentId;
+      
+      // Create start node if this is the root level
+      if (!parentId) {
+        flowchart += `    A${currentId}([Start])\n`;
+        firstId = currentId;
+        lastId = currentId;
+      }
       
       for (let i = 0; i < statements.length; i++) {
         const stmt = statements[i];
-        const currentNodeId = nodeId++;
+        const stmtNodeId = nodeId++;
+        
+        // Connect to previous node if not the first statement
+        if (i > 0 || parentId) {
+          flowchart += `    A${lastId} --> A${stmtNodeId}\n`;
+        }
         
         switch (stmt.type) {
           case 'start':
-            flowchart += `    A${currentNodeId}([Start])\n`;
-            if (lastId !== currentNodeId) {
-              flowchart += `    A${lastId} --> A${currentNodeId}\n`;
-            }
-            lastId = currentNodeId;
+            flowchart += `    A${stmtNodeId}([Start])\n`;
             break;
             
           case 'end':
-            flowchart += `    A${currentNodeId}([End])\n`;
-            flowchart += `    A${lastId} --> A${currentNodeId}\n`;
-            lastId = currentNodeId;
+            flowchart += `    A${stmtNodeId}([End])\n`;
             break;
             
           case 'input':
-            flowchart += `    A${currentNodeId}[/Input: ${stmt.variable}/]\n`;
-            if (lastId !== currentNodeId) {
-              flowchart += `    A${lastId} --> A${currentNodeId}\n`;
-            }
-            lastId = currentNodeId;
+            flowchart += `    A${stmtNodeId}[/Input: ${stmt.variable}/]\n`;
             break;
             
           case 'output':
-            const outputText = stmt.message?.substring(0, 30) || 'Output';
-            flowchart += `    A${currentNodeId}[/Output: ${outputText}/]\n`;
-            if (lastId !== currentNodeId) {
-              flowchart += `    A${lastId} --> A${currentNodeId}\n`;
-            }
-            lastId = currentNodeId;
+            const outputText = (stmt.message || 'Output').substring(0, 25);
+            flowchart += `    A${stmtNodeId}[/Output: ${outputText}/]\n`;
             break;
             
           case 'assignment':
-            flowchart += `    A${currentNodeId}[${stmt.variable} = ${stmt.value}]\n`;
-            if (lastId !== currentNodeId) {
-              flowchart += `    A${lastId} --> A${currentNodeId}\n`;
-            }
-            lastId = currentNodeId;
+            flowchart += `    A${stmtNodeId}[${stmt.variable} = ${stmt.value}]\n`;
             break;
             
           case 'if':
-            const conditionText = stmt.condition?.substring(0, 20) || 'condition';
-            flowchart += `    A${currentNodeId}{${conditionText}?}\n`;
-            if (lastId !== currentNodeId) {
-              flowchart += `    A${lastId} --> A${currentNodeId}\n`;
-            }
+            const conditionText = (stmt.condition || 'condition').substring(0, 20);
+            flowchart += `    A${stmtNodeId}{${conditionText}?}\n`;
             
             // Generate IF body
-            const ifBodyEndId = generateFlowchartNodes(stmt.body || [], currentNodeId);
-            flowchart += `    A${currentNodeId} -->|Yes| A${ifBodyEndId}\n`;
+            const ifBodyResult = generateFlowchartNodes(stmt.body || [], stmtNodeId);
+            flowchart += `    A${stmtNodeId} -->|Yes| A${ifBodyResult.startId}\n`;
             
             // Generate ELSE body if exists
-            let elseBodyEndId = currentNodeId;
+            let elseEndId = stmtNodeId;
             if (stmt.elseBody && stmt.elseBody.length > 0) {
-              elseBodyEndId = generateFlowchartNodes(stmt.elseBody, currentNodeId);
-              flowchart += `    A${currentNodeId} -->|No| A${elseBodyEndId}\n`;
+              const elseBodyResult = generateFlowchartNodes(stmt.elseBody, stmtNodeId);
+              flowchart += `    A${stmtNodeId} -->|No| A${elseBodyResult.startId}\n`;
+              elseEndId = elseBodyResult.endId;
             } else {
-              flowchart += `    A${currentNodeId} -->|No| A${nodeId}\n`;
-              elseBodyEndId = nodeId++;
-              flowchart += `    A${elseBodyEndId}[ ]\n`;
+              // Create empty else path
+              const emptyElseId = nodeId++;
+              flowchart += `    A${stmtNodeId} -->|No| A${emptyElseId}\n`;
+              flowchart += `    A${emptyElseId}[ ]\n`;
+              elseEndId = emptyElseId;
             }
             
-            // Merge point
+            // Create merge point after if/else
             const mergeId = nodeId++;
-            flowchart += `    A${ifBodyEndId} --> A${mergeId}\n`;
-            flowchart += `    A${elseBodyEndId} --> A${mergeId}\n`;
+            flowchart += `    A${ifBodyResult.endId} --> A${mergeId}\n`;
+            flowchart += `    A${elseEndId} --> A${mergeId}\n`;
             flowchart += `    A${mergeId}[ ]\n`;
             
             lastId = mergeId;
-            break;
+            continue; // Skip normal lastId update
             
           case 'while':
-            const whileCondition = stmt.condition?.substring(0,20) || 'condition';
-            flowchart += `    A${currentNodeId}{While ${whileCondition}?}\n`;
-            if (lastId !== currentNodeId) {
-              flowchart += `    A${lastId} --> A${currentNodeId}\n`;
-            }
+            const whileCondition = (stmt.condition || 'condition').substring(0, 20);
+            flowchart += `    A${stmtNodeId}{While ${whileCondition}?}\n`;
             
             // Generate loop body
-            const loopBodyEndId = generateFlowchartNodes(stmt.body || [], currentNodeId);
-            flowchart += `    A${currentNodeId} -->|Yes| A${loopBodyEndId}\n`;
-            flowchart += `    A${loopBodyEndId} --> A${currentNodeId}\n`;
-            flowchart += `    A${currentNodeId} -->|No| A${nodeId}\n`;
+            const whileBodyResult = generateFlowchartNodes(stmt.body || [], stmtNodeId);
+            flowchart += `    A${stmtNodeId} -->|Yes| A${whileBodyResult.startId}\n`;
             
-            lastId = nodeId++;
-            flowchart += `    A${lastId}[ ]\n`;
-            break;
+            // Create loop back connection
+            flowchart += `    A${whileBodyResult.endId} --> A${stmtNodeId}\n`;
+            
+            // Create exit path
+            const whileExitId = nodeId++;
+            flowchart += `    A${stmtNodeId} -->|No| A${whileExitId}\n`;
+            flowchart += `    A${whileExitId}[ ]\n`;
+            
+            lastId = whileExitId;
+            continue; // Skip normal lastId update
             
           case 'for':
             const forText = `${stmt.loopVariable} = ${stmt.startValue} to ${stmt.endValue}`;
-            flowchart += `    A${currentNodeId}{For ${forText}}\n`;
-            if (lastId !== currentNodeId) {
-              flowchart += `    A${lastId} --> A${currentNodeId}\n`;
-            }
+            flowchart += `    A${stmtNodeId}{For ${forText}}\n`;
             
             // Generate loop body
-            const forBodyEndId = generateFlowchartNodes(stmt.body || [], currentNodeId);
-            flowchart += `    A${currentNodeId} --> A${forBodyEndId}\n`;
-            flowchart += `    A${forBodyEndId} --> A${currentNodeId}\n`;
-            flowchart += `    A${currentNodeId} --> A${nodeId}\n`;
+            const forBodyResult = generateFlowchartNodes(stmt.body || [], stmtNodeId);
+            flowchart += `    A${stmtNodeId} --> A${forBodyResult.startId}\n`;
             
-            lastId = nodeId++;
-            flowchart += `    A${lastId}[ ]\n`;
-            break;
+            // Create loop back connection
+            flowchart += `    A${forBodyResult.endId} --> A${stmtNodeId}\n`;
+            
+            // Create exit path
+            const forExitId = nodeId++;
+            flowchart += `    A${stmtNodeId} --> A${forExitId}\n`;
+            flowchart += `    A${forExitId}[ ]\n`;
+            
+            lastId = forExitId;
+            continue; // Skip normal lastId update
+            
+          case 'comment':
+            // Skip comments in flowchart
+            continue;
             
           default:
-            // Skip unknown statement types
-            continue;
+            flowchart += `    A${stmtNodeId}[${stmt.content}]\n`;
         }
+        
+        lastId = stmtNodeId;
       }
       
-      return lastId;
+      // Add explicit end node if this is the root level and no explicit end was found
+      if (!parentId && !statements.some(s => s.type === 'end')) {
+        const endId = nodeId++;
+        flowchart += `    A${endId}([End])\n`;
+        flowchart += `    A${lastId} --> A${endId}\n`;
+        lastId = endId;
+      }
+      
+      return { startId: firstId, endId: lastId };
     };
     
-    // Add start node if not present
-    if (!parsed.statements.some(s => s.type === 'start')) {
-      flowchart += '    A1([Start])\n';
-      generateFlowchartNodes(parsed.statements, 1);
-    } else {
-      generateFlowchartNodes(parsed.statements);
-    }
-    
-    // Add end node if not present
-    if (!parsed.statements.some(s => s.type === 'end')) {
-      const endId = nodeId++;
-      flowchart += `    A${endId}([End])\n`;
-    }
+    generateFlowchartNodes(parsed.statements);
     
     const executionTime = Math.max(1, Date.now() - startTime);
     return { code: flowchart, executionTime };
@@ -874,14 +994,19 @@ export const convertPseudocode = async (input: CreateConversionRequestInput): Pr
             'Use standard pseudocode keywords like START, END, IF, THEN, ELSE',
             'Check that each line contains a complete statement',
             'Try using simpler pseudocode constructs first',
-            'Ensure proper indentation for nested blocks'
+            'Ensure proper indentation for nested blocks',
+            'Use SET for assignments (e.g., SET x = 10)',
+            'End IF statements with END IF',
+            'End WHILE loops with END WHILE or use DO keyword'
           ];
           avoidSuggestions = [
             'Do not use programming language-specific syntax',
             'Avoid mixing different pseudocode styles',
-            'Do not leave incomplete statements'
+            'Do not leave incomplete statements',
+            'Avoid complex nested structures without proper keywords'
           ];
           severity = 'high';
+          visualIndicators = 'pseudocode_input';
         } else if (errorMessage.includes('Unsupported language')) {
           userFriendlyMessage = `${language} is not currently supported for conversion`;
           fixSuggestions = [
@@ -892,19 +1017,23 @@ export const convertPseudocode = async (input: CreateConversionRequestInput): Pr
             'Do not expect all programming languages to be supported'
           ];
           severity = 'low';
+          visualIndicators = 'language_selector';
         } else {
           userFriendlyMessage = `Conversion to ${language} failed due to a parsing error`;
           fixSuggestions = [
             'Check your pseudocode for syntax errors',
             'Ensure all IF statements have matching END IF',
             'Verify that loops have proper start and end markers',
-            'Try breaking complex logic into simpler steps'
+            'Try breaking complex logic into simpler steps',
+            'Use parentheses for complex conditions'
           ];
           avoidSuggestions = [
             'Do not use ambiguous variable names',
             'Avoid deeply nested control structures',
-            'Do not mix pseudocode with actual code syntax'
+            'Do not mix pseudocode with actual code syntax',
+            'Avoid incomplete conditional statements'
           ];
+          visualIndicators = 'pseudocode_input';
         }
         
         const errorData = await db.insert(errorLogsTable)
@@ -973,23 +1102,27 @@ export const convertPseudocode = async (input: CreateConversionRequestInput): Pr
             'Use clear control flow statements (IF, WHILE, FOR)',
             'Include START and END markers in your pseudocode',
             'Ensure each step is on a separate line',
-            'Use descriptive names for variables and conditions'
+            'Use descriptive names for variables and conditions',
+            'Keep the logic flow simple and linear'
           ];
           avoidSuggestions = [
             'Avoid overly complex nested logic for flowcharts',
             'Do not use programming-specific constructs',
-            'Avoid unclear or ambiguous step descriptions'
+            'Avoid unclear or ambiguous step descriptions',
+            'Do not mix different pseudocode styles'
           ];
         } else {
           userFriendlyMessage = 'Flowchart generation encountered an unexpected error';
           fixSuggestions = [
             'Simplify the pseudocode structure',
             'Break down complex operations into smaller steps',
-            'Use standard pseudocode conventions'
+            'Use standard pseudocode conventions',
+            'Ensure proper nesting of control structures'
           ];
           avoidSuggestions = [
             'Avoid overly complex branching logic',
-            'Do not use unconventional pseudocode syntax'
+            'Do not use unconventional pseudocode syntax',
+            'Avoid recursive or self-referential logic'
           ];
         }
         
