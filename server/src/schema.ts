@@ -1,8 +1,7 @@
-
 import { z } from 'zod';
 
 // Enums for supported languages and output types
-export const supportedLanguages = ['python', 'javascript', 'java', 'csharp', 'cpp', 'go', 'rust'] as const;
+export const supportedLanguages = ['pseudocode', 'python', 'javascript', 'java', 'csharp', 'cpp', 'go', 'rust'] as const;
 export const outputTypes = ['code', 'flowchart'] as const;
 export const accessibilityModes = ['standard', 'high_contrast', 'large_text', 'simplified'] as const;
 export const voiceCommands = ['convert', 'clear', 'copy', 'accessibility_toggle', 'language_select'] as const;

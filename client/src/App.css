@@ -4,20 +4,29 @@
 @import 'tailwindcss/utilities';
 
 @layer components {
-  /* Voice recognition indicator with enhanced animation */
+  /* Enhanced voice recognition indicator with prominent pulsing animation */
   .voice-listening {
-    @apply animate-pulse border-red-500 shadow-lg shadow-red-500/50;
-    animation: voice-pulse 1.5s ease-in-out infinite;
+    @apply border-red-500 shadow-lg shadow-red-500/50;
+    animation: voice-pulse 1.2s ease-in-out infinite, scale-pulse 0.8s ease-in-out infinite alternate;
   }
   
   @keyframes voice-pulse {
     0%, 100% {
-      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8);
       border-color: rgb(239, 68, 68);
     }
     50% {
-      box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+      box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
       border-color: rgb(220, 38, 38);
+    }
+  }
+  
+  @keyframes scale-pulse {
+    0% {
+      transform: scale(1);
+    }
+    100% {
+      transform: scale(1.05);
     }
   }
   
@@ -31,17 +40,43 @@
     @apply font-sans text-base leading-relaxed;
   }
   
-  /* Enhanced error indicators with severity levels */
+  /* Enhanced error indicators with severity levels and improved visibility */
   .error-border {
-    @apply border-2 border-red-500 shadow-lg shadow-red-500/25 bg-red-50/50;
+    @apply border-2 border-red-500 shadow-lg shadow-red-500/30 bg-red-50/60;
+    animation: error-glow 2s ease-in-out infinite alternate;
   }
   
   .warning-border {
-    @apply border-2 border-yellow-500 shadow-lg shadow-yellow-500/25 bg-yellow-50/50;
+    @apply border-2 border-yellow-500 shadow-lg shadow-yellow-500/30 bg-yellow-50/60;
+    animation: warning-glow 2s ease-in-out infinite alternate;
   }
   
   .critical-border {
-    @apply border-2 border-red-600 shadow-lg shadow-red-600/50 bg-red-100/50 animate-pulse;
+    @apply border-2 border-red-600 shadow-lg shadow-red-600/50 bg-red-100/70;
+    animation: critical-pulse 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes error-glow {
+    0% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.3), 0 0 10px rgba(239, 68, 68, 0.2); }
+    100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.5), 0 0 20px rgba(239, 68, 68, 0.3); }
+  }
+  
+  @keyframes warning-glow {
+    0% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.3), 0 0 10px rgba(245, 158, 11, 0.2); }
+    100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.5), 0 0 20px rgba(245, 158, 11, 0.3); }
+  }
+  
+  @keyframes critical-pulse {
+    0%, 100% { 
+      border-color: rgb(239, 68, 68);
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.6), 0 0 30px rgba(239, 68, 68, 0.4);
+      transform: scale(1);
+    }
+    50% { 
+      border-color: rgb(220, 38, 38);
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.8), 0 0 50px rgba(239, 68, 68, 0.6);
+      transform: scale(1.02);
+    }
   }
   
   /* Success indicators */
@@ -49,17 +84,39 @@
     @apply border-2 border-green-500 shadow-lg shadow-green-500/25 bg-green-50/50;
   }
   
-  /* Neuro-aware visual indicators */
+  /* Enhanced neuro-aware visual indicators with better accessibility */
   .neuro-focus {
-    @apply ring-4 ring-blue-300 ring-opacity-50 border-blue-500;
+    @apply ring-4 ring-blue-300 ring-opacity-60 border-blue-500;
+    transition: all 0.2s ease-in-out;
   }
   
   .neuro-error {
-    @apply ring-4 ring-red-300 ring-opacity-50 border-red-500 bg-red-50;
+    @apply ring-4 ring-red-300 ring-opacity-60 border-red-500 bg-red-50;
+    transition: all 0.3s ease-in-out;
+    position: relative;
+  }
+  
+  .neuro-error::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.1));
+    border-radius: inherit;
+    z-index: -1;
+    animation: neuro-error-shimmer 3s ease-in-out infinite;
+  }
+  
+  @keyframes neuro-error-shimmer {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
   }
   
   .neuro-success {
-    @apply ring-4 ring-green-300 ring-opacity-50 border-green-500 bg-green-50;
+    @apply ring-4 ring-green-300 ring-opacity-60 border-green-500 bg-green-50;
+    transition: all 0.2s ease-in-out;
   }
   
   /* Focus indicators for accessibility */
@@ -94,9 +151,11 @@
     @apply transition-all duration-200 focus:scale-105 active:scale-95;
   }
   
-  /* Loading animation */
+  /* Enhanced loading animation with better visual feedback */
   .loading-pulse {
-    @apply animate-pulse bg-gradient-to-r from-blue-400 via-purple-500 to-blue-400 bg-size-200 animate-gradient-x;
+    @apply animate-pulse bg-gradient-to-r from-blue-400 via-purple-500 to-blue-400;
+    background-size: 200% 200%;
+    animation: gradient-x 2s ease-in-out infinite, pulse 1.5s ease-in-out infinite;
   }
   
   @keyframes gradient-x {
@@ -106,6 +165,38 @@
     50% {
       background-position: 100% 50%;
     }
+  }
+  
+  /* Pseudocode input enhancement styles */
+  .pseudocode-enhanced {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    line-height: 1.6;
+  }
+  
+  /* Flowchart link styling */
+  .mermaid-live-link {
+    @apply text-blue-600 hover:text-blue-800 underline decoration-blue-400 hover:decoration-blue-600;
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .mermaid-live-link:hover {
+    text-decoration-thickness: 2px;
+  }
+  
+  /* Code block improvements */
+  pre code {
+    @apply font-mono text-sm leading-relaxed;
+    tab-size: 2;
+  }
+  
+  /* Enhanced button hover effects */
+  .btn-enhanced:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  
+  .btn-enhanced:active {
+    transform: translateY(0);
   }
   
   /* Progress bar animations */

@@ -201,9 +201,15 @@ describe('convertPseudocode', () => {
     const result = await convertPseudocode(invalidInput);
 
     expect(result.results).toHaveLength(1);
-    expect(result.results[0].success).toBe(false);
+    
+    // The Python result should now be successful with fallback code for invalid pseudocode
+    expect(result.results[0].success).toBe(true);
+    expect(result.results[0].generated_code).toContain('Pseudocode conversion issues:');
+    expect(result.results[0].generated_code).toContain('Simplified Python fallback');
+    
+    // Errors should be logged for the syntax issues
     expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0].error_type).toEqual('conversion_error');
-    expect(result.errors[0].user_friendly_message).toContain('Could not understand the pseudocode structure');
+    expect(result.errors[0].error_type).toEqual('pseudocode_syntax_error');
+    expect(result.errors[0].user_friendly_message).toContain('Pseudocode issue');
   });
 });

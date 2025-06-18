@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -195,7 +194,7 @@ function App() {
     
     switch (highestSeverity.severity) {
       case 'critical':
-        return 'critical-border neuro-error';
+        return 'critical-border neuro-error animate-pulse';
       case 'high':
         return 'error-border neuro-error animate-pulse';
       case 'medium':
@@ -218,13 +217,26 @@ function App() {
     
     if (errorLog) {
       // Enhanced error-specific audio feedback
-      let message = `Error with ${errorLog.severity} severity: ${errorLog.user_friendly_message}`;
+      let message = '';
       
-      if (errorLog.fix_suggestions.length > 0) {
-        message += `. Here's what to do: ${errorLog.fix_suggestions[0]}`;
+      switch (errorLog.error_type) {
+        case 'pseudocode_syntax_error':
+          message = `Pseudocode syntax issue detected: ${errorLog.user_friendly_message}. ${errorLog.fix_suggestions[0]}`;
+          break;
+        case 'conversion_error':
+          message = `Conversion error: ${errorLog.user_friendly_message}. To fix this: ${errorLog.fix_suggestions[0]}`;
+          break;
+        case 'flowchart_error':
+          message = `Flowchart generation issue: ${errorLog.user_friendly_message}. Suggestion: ${errorLog.fix_suggestions[0]}`;
+          break;
+        case 'validation_error':
+          message = `Input validation error: ${errorLog.user_friendly_message}. Please ${errorLog.fix_suggestions[0]}`;
+          break;
+        default:
+          message = `${errorLog.severity} severity error: ${errorLog.user_friendly_message}`;
       }
       
-      // Add additional context based on error type
+      // Add additional context based on visual indicators
       if (errorLog.visual_indicators?.includes('pseudocode_input')) {
         message += '. Please check your pseudocode input area.';
       } else if (errorLog.visual_indicators?.includes('language_selector')) {
@@ -251,11 +263,13 @@ function App() {
         fix_suggestions: [
           'Type or paste your pseudocode in the input area',
           'Use the voice input button to speak your pseudocode',
-          'Try the example pseudocode provided'
+          'Try the example pseudocode provided',
+          'Use standard pseudocode keywords like START, INPUT, OUTPUT, IF, WHILE, FOR, END'
         ],
         avoid_suggestions: [
           'Do not leave the input area empty',
-          'Avoid submitting without any content'
+          'Avoid submitting without any content',
+          'Do not use programming language syntax instead of pseudocode'
         ],
         visual_indicators: 'pseudocode_input',
         audio_feedback: 'error_sound',
@@ -277,11 +291,13 @@ function App() {
         fix_suggestions: [
           'Check at least one programming language from the list',
           'Python is recommended for beginners',
-          'You can select multiple languages at once'
+          'You can select multiple languages at once',
+          'Try selecting pseudocode as output to see a reformatted version'
         ],
         avoid_suggestions: [
           'Do not proceed without selecting any languages',
-          'Avoid unchecking all language options'
+          'Avoid unchecking all language options',
+          'Do not expect conversion without target languages'
         ],
         visual_indicators: 'language_selector',
         audio_feedback: 'error_sound',
@@ -344,7 +360,8 @@ function App() {
         ],
         avoid_suggestions: [
           'Do not refresh the page immediately',
-          'Avoid submitting the same request multiple times quickly'
+          'Avoid submitting the same request multiple times quickly',
+          'Do not assume the server is down permanently'
         ],
         visual_indicators: 'alert_banner',
         audio_feedback: 'error_sound',
@@ -440,6 +457,12 @@ function App() {
     }
   }, [playAudioFeedback]);
 
+  // Extract download URL from Mermaid code
+  const extractDownloadUrl = useCallback((mermaidCode: string): string | null => {
+    const match = mermaidCode.match(/%% Mock download URL: (.*)/);
+    return match ? match[1] : null;
+  }, []);
+
   // Apply accessibility styles
   const getAccessibilityClasses = () => {
     let classes = 'min-h-screen transition-all duration-300 ';
@@ -465,7 +488,7 @@ function App() {
     return classes;
   };
 
-  const availableLanguages = ['python', 'javascript', 'java', 'csharp', 'cpp', 'go', 'rust'];
+  const availableLanguages = ['pseudocode', 'python', 'javascript', 'java', 'csharp', 'cpp', 'go', 'rust'];
 
   return (
     <div className={getAccessibilityClasses()} style={{ fontSize: `${fontSize}px` }}>
@@ -639,7 +662,10 @@ function App() {
                         className="focus-visible:ring-2 focus-visible:ring-blue-500"
                       />
                       <Label htmlFor={lang} className="capitalize cursor-pointer">
-                        {lang === 'csharp' ? 'C#' : lang === 'cpp' ? 'C++' : lang}
+                        {lang === 'csharp' ? 'C#' 
+                         : lang === 'cpp' ? 'C++' 
+                         : lang === 'pseudocode' ? 'Pseudocode (Reformatted)'
+                         : lang}
                       </Label>
                     </div>
                   ))}
@@ -695,7 +721,7 @@ function App() {
                           setErrors(prev => prev.filter(err => !err.visual_indicators?.includes('pseudocode_input')));
                         }
                       }}
-                      placeholder="Enter your pseudocode here...&#10;&#10;Example:&#10;START&#10;INPUT number&#10;IF number > 0 THEN&#10;    PRINT 'Positive'&#10;ELSE IF number < 0 THEN&#10;    PRINT 'Negative'&#10;ELSE&#10;    PRINT 'Zero'&#10;END IF&#10;END"
+                      placeholder="Enter your pseudocode here using standard keywords and structure...&#10;&#10;💡 Pseudocode Tips:&#10;• Use START and END to mark boundaries&#10;• Use INPUT variableName for user input&#10;• Use OUTPUT or PRINT for displaying results&#10;• Use IF condition THEN ... ELSE ... END IF for decisions&#10;• Use WHILE condition DO ... END WHILE for loops&#10;• Use FOR variable FROM start TO end ... END FOR for counting&#10;• Use SET variable = value for assignments&#10;&#10;📝 Example:&#10;START&#10;INPUT number&#10;IF number > 0 THEN&#10;    OUTPUT 'Positive number'&#10;ELSE IF number < 0 THEN&#10;    OUTPUT 'Negative number'&#10;ELSE&#10;    OUTPUT 'Zero'&#10;END IF&#10;END"
                       className={`min-h-[200px] resize-none transition-all duration-200 ${getVisualIndicatorClasses('pseudocode_input')} focus-visible:ring-2 focus-visible:ring-blue-500`}
                       aria-describedby="pseudocode-help"
                     />
@@ -715,16 +741,17 @@ function App() {
                         size="sm"
                         className={`absolute top-2 right-2 transition-all duration-200 ${
                           isListening 
-                            ? 'voice-listening animate-pulse border-red-500 shadow-lg shadow-red-500/50 ring-2 ring-red-300' 
-                            : 'hover:border-blue-500 hover:shadow-md hover:shadow-blue-500/25'
+                            ? 'voice-listening animate-pulse border-red-500 shadow-lg shadow-red-500/50 ring-2 ring-red-300 scale-105' 
+                            : 'hover:border-blue-500 hover:shadow-md hover:shadow-blue-500/25 hover:scale-105'
                         }`}
                         onClick={isListening ? stopListening : startListening}
                         aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
                       >
                         {isListening ? (
+                          
                           <span className="flex items-center gap-1">
-                            <span className="animate-pulse">🔴</span>
-                            <span>Recording</span>
+                            <span className="animate-pulse text-red-500">🔴</span>
+                            <span className="font-semibold">Recording</span>
                           </span>
                         ) : (
                           <span className="flex items-center gap-1">
@@ -736,15 +763,16 @@ function App() {
                     )}
                   </div>
                   
-                  {/* Pseudocode help text */}
+                  {/* Enhanced pseudocode help text */}
                   <div id="pseudocode-help" className="text-sm text-gray-600 mt-2">
-                    <p className="font-medium mb-1">💡 Pseudocode Tips:</p>
+                    <p className="font-medium mb-1">💡 Pseudocode Guidelines:</p>
                     <ul className="text-xs space-y-1 list-disc list-inside">
-                      <li>Use START/END to mark the beginning and end</li>
-                      <li>Use INPUT/OUTPUT for user interaction</li>
-                      <li>Use IF/THEN/ELSE for conditions</li>
-                      <li>Use WHILE/FOR for loops</li>
-                      <li>Keep statements simple and clear</li>
+                      <li><strong>Structure:</strong> START your pseudocode and END it clearly</li>
+                      <li><strong>Input/Output:</strong> Use INPUT for user input, OUTPUT/PRINT for results</li>
+                      <li><strong>Decisions:</strong> IF condition THEN ... ELSE ... END IF</li>
+                      <li><strong>Loops:</strong> WHILE condition DO ... END WHILE or FOR variable FROM start TO end</li>
+                      <li><strong>Assignment:</strong> SET variable = value or variable := value</li>
+                      <li><strong>Clarity:</strong> Keep statements simple, one action per line</li>
                     </ul>
                   </div>
 
@@ -774,11 +802,11 @@ function App() {
                         const example = `START
 INPUT number
 IF number > 0 THEN
-    PRINT 'Positive'
+    OUTPUT "Positive number"
 ELSE IF number < 0 THEN
-    PRINT 'Negative'
+    OUTPUT "Negative number"
 ELSE
-    PRINT 'Zero'
+    OUTPUT "Zero"
 END IF
 END`;
                         setPseudocode(example);
@@ -825,7 +853,10 @@ END`;
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline" className="capitalize">
-                                    {result.language === 'csharp' ? 'C#' : result.language === 'cpp' ? 'C++' : result.language}
+                                    {result.language === 'csharp' ? 'C#' 
+                                     : result.language === 'cpp' ? 'C++' 
+                                     : result.language === 'pseudocode' ? 'Pseudocode (Reformatted)'
+                                     : result.language}
                                   </Badge>
                                   {result.success ? (
                                     <Badge variant="default" className="bg-green-500">
@@ -851,9 +882,21 @@ END`;
                             </CardHeader>
                             <CardContent>
                               {result.success ? (
-                                <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto text-sm">
-                                  <code>{result.generated_code}</code>
-                                </pre>
+                                <div className="space-y-2">
+                                  {result.language === 'python' && result.generated_code.includes('Pseudocode conversion issues:') && (
+                                    <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-md mb-3">
+                                      <p className="text-yellow-800 font-medium text-sm">
+                                        🔧 Fallback Python Code Generated
+                                      </p>
+                                      <p className="text-yellow-700 text-xs mt-1">
+                                        This is a simplified version with explanations due to pseudocode issues detected.
+                                      </p>
+                                    </div>
+                                  )}
+                                  <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto text-sm">
+                                    <code>{result.generated_code}</code>
+                                  </pre>
+                                </div>
                               ) : (
                                 <div className="bg-red-50 border border-red-200 p-4 rounded-md">
                                   <p className="text-red-700 font-medium">Conversion Failed</p>
@@ -870,55 +913,90 @@ END`;
                     <TabsContent value="flowchart">
                       {conversionResult.results
                         .filter((result: ConversionResult) => result.language === 'mermaid')
-                        .map((result: ConversionResult) => (
-                          <Card key={result.id} className="overflow-hidden">
-                            <CardHeader className="pb-3">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline">Mermaid Flowchart</Badge>
-                                  {result.success ? (
-                                    <Badge variant="default" className="bg-green-500">
-                                      ✅ Success
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="destructive">
-                                      ❌ Failed
-                                    </Badge>
-                                  )}
+                        .map((result: ConversionResult) => {
+                          const downloadUrl = extractDownloadUrl(result.generated_code);
+                          const cleanMermaidCode = result.generated_code.replace(/%% Mock download URL: .*/g, '').trim();
+                          
+                          return (
+                            <Card key={result.id} className="overflow-hidden">
+                              <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline">Mermaid Flowchart</Badge>
+                                    {result.success ? (
+                                      <Badge variant="default" className="bg-green-500">
+                                        ✅ Success
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="destructive">
+                                        ❌ Failed
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => copyToClipboard(cleanMermaidCode)}
+                                    >
+                                      📋 Copy
+                                    </Button>
+                                    {downloadUrl && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          // Simulate flowchart image download
+                                          const link = document.createElement('a');
+                                          link.href = downloadUrl;
+                                          link.download = 'flowchart.jpg';
+                                          document.body.appendChild(link);
+                                          link.click();
+                                          document.body.removeChild(link);
+                                          playAudioFeedback('success');
+                                        }}
+                                      >
+                                        💾 Download JPG/PNG
+                                      </Button>
+                                    )}
+                                  </div>
                                 </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => copyToClipboard(result.generated_code)}
-                                >
-                                  📋 Copy
-                                </Button>
-                              </div>
-                            </CardHeader>
-                            <CardContent>
-                              {result.success ? (
-                                <div className="space-y-3">
-                                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                                    Copy this Mermaid syntax to visualize your flowchart:
-                                  </p>
-                                  <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto text-sm">
-                                    <code>{result.generated_code}</code>
-                                  </pre>
-                                  <p className="text-xs text-gray-500">
-                                    💡 Tip: Use online Mermaid editors or supported platforms to render this flowchart
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="bg-red-50 border border-red-200 p-4 rounded-md">
-                                  <p className="text-red-700 font-medium">Flowchart Generation Failed</p>
-                                  <p className="text-red-600 text-sm mt-1">
-                                    {result.error_message || 'Unknown error occurred'}
-                                  </p>
-                                </div>
-                              )}
-                            </CardContent>
-                          </Card>
-                        ))}
+                              </CardHeader>
+                              <CardContent>
+                                {result.success ? (
+                                  <div className="space-y-3">
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                      Copy this Mermaid syntax to visualize your flowchart:
+                                    </p>
+                                    <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto text-sm">
+                                      <code>{cleanMermaidCode}</code>
+                                    </pre>
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                      <span>💡 Tip: Use online Mermaid editors to render this flowchart</span>
+                                      <Button
+                                        variant="link"
+                                        size="sm"
+                                        className="h-auto p-0 text-blue-600 hover:text-blue-800"
+                                        onClick={() => {
+                                          window.open(`https://mermaid.live/edit#pako:${btoa(cleanMermaidCode)}`, '_blank');
+                                        }}
+                                      >
+                                        🔗 Open in Mermaid Live Editor
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="bg-red-50 border border-red-200 p-4 rounded-md">
+                                    <p className="text-red-700 font-medium">Flowchart Generation Failed</p>
+                                    <p className="text-red-600 text-sm mt-1">
+                                      {result.error_message || 'Unknown error occurred'}
+                                    </p>
+                                  </div>
+                                )}
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
                     </TabsContent>
                   </Tabs>
                 </CardContent>
