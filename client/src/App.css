@@ -1,131 +1,177 @@
-:root {
-  --background: #fff;
-  --text: #000;
-  --text-secondary: #666;
-  --spinner-border: #000;
-  --spinner-border-top: transparent;
-  --dot-color: #000;
-  --grid-color: rgba(0,0,0,0.05);
-  --gradient-color: rgba(0,0,0,0.03);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-      --background: #000;
-      --text: #fff;
-      --text-secondary: #888;
-      --spinner-border: #fff;
-      --spinner-border-top: transparent;
-      --dot-color: #fff;
-      --grid-color: rgba(255,255,255,0.05);
-      --gradient-color: rgba(255,255,255,0.03);
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+@layer components {
+  /* Voice recognition indicator */
+  .voice-listening {
+    @apply animate-pulse border-red-500 shadow-lg shadow-red-500/25;
+  }
+  
+  /* High contrast mode adjustments */
+  .high-contrast {
+    @apply contrast-150;
+  }
+  
+  /* Simplified mode adjustments */
+  .simplified-mode {
+    @apply font-sans text-base leading-relaxed;
+  }
+  
+  /* Error indicators */
+  .error-border {
+    @apply border-2 border-red-500 shadow-lg shadow-red-500/25;
+  }
+  
+  /* Success indicators */
+  .success-border {
+    @apply border-2 border-green-500 shadow-lg shadow-green-500/25;
+  }
+  
+  /* Focus indicators for accessibility */
+  .focus-visible:focus {
+    @apply outline-none ring-2 ring-blue-500 ring-offset-2;
+  }
+  
+  /* Large text mode */
+  .large-text {
+    @apply text-lg leading-relaxed;
+  }
+  
+  .large-text h1 {
+    @apply text-5xl;
+  }
+  
+  .large-text h2 {
+    @apply text-3xl;
+  }
+  
+  .large-text .text-sm {
+    @apply text-base;
+  }
+  
+  /* Code syntax highlighting improvements */
+  pre code {
+    @apply font-mono text-sm leading-relaxed;
+  }
+  
+  /* Improved button states for accessibility */
+  .btn-accessible {
+    @apply transition-all duration-200 focus:scale-105 active:scale-95;
+  }
+  
+  /* Loading animation */
+  .loading-pulse {
+    @apply animate-pulse bg-gradient-to-r from-blue-400 via-purple-500 to-blue-400 bg-size-200 animate-gradient-x;
+  }
+  
+  @keyframes gradient-x {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  
+  /* Progress bar animations */
+  .progress-bar {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  /* Card hover effects */
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-lg hover:scale-[1.02];
+  }
+  
+  /* Tooltip styles for accessibility */
+  .tooltip {
+    @apply absolute z-10 px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip-arrow;
+  }
+  
+  /* Voice command feedback */
+  .voice-feedback {
+    @apply fixed top-4 right-4 z-50 px-4 py-2 bg-blue-500 text-white rounded-lg shadow-lg animate-fade-in-out;
+  }
+  
+  @keyframes fade-in-out {
+    0%, 100% {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    10%, 90% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Responsive text scaling */
+  @media (max-width: 640px) {
+    .responsive-text {
+      @apply text-sm;
+    }
+    
+    .responsive-title {
+      @apply text-2xl;
+    }
+  }
+  
+  /* Print styles for accessibility */
+  @media print {
+    .no-print {
+      @apply hidden;
+    }
+    
+    .print-friendly {
+      @apply text-black bg-white;
+    }
   }
 }
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+
+/* Global accessibility improvements */
+html {
+  scroll-behavior: smooth;
 }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--background);
-  color: var(--text);
-  padding: 20px;
-  line-height: 1.5;
-  transition: background-color 0.3s ease, color 0.3s ease;
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
-.container {
-  text-align: center;
-  max-width: 600px;
+
+/* High contrast mode improvements */
+@media (prefers-contrast: high) {
+  .card {
+    @apply border-2 border-gray-800;
+  }
+  
+  .button {
+    @apply border-2 border-current;
+  }
 }
-h1.title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-  letter-spacing: -0.02em;
+
+/* Focus indicators */
+:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
-p.description {
-  font-size: 1.125rem;
-  color: var(--text-secondary);
-  margin-bottom: 2rem;
-}
-.spinner {
-  width: 40px;
-  height: 40px;
-  margin: 2rem auto;
-  position: relative;
-}
-.spinner::before {
-  content: '';
+
+/* Screen reader only content */
+.sr-only {
   position: absolute;
-  width: 100%;
-  height: 100%;
-  border: 2px solid var(--spinner-border);
-  border-top-color: var(--spinner-border-top);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-.dots {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-  margin-top: 2rem;
-}
-.dot {
-  width: 4px;
-  height: 4px;
-  background: var(--dot-color);
-  border-radius: 50%;
-  animation: fade 1.4s infinite ease-in-out;
-}
-.dot:nth-child(1) { animation-delay: -0.32s; }
-.dot:nth-child(2) { animation-delay: -0.16s; }
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-@keyframes fade {
-  0%, 80%, 100% { opacity: 0; }
-  40% { opacity: 1; }
-}
-.grid {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -1;
-  background-image: 
-      linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
-  background-size: 24px 24px;
-  transition: background-image 0.3s ease;
-}
-.gradient {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -2;
-  background: radial-gradient(circle at center, var(--gradient-color) 0%, transparent 50%);
-  transition: background 0.3s ease;
-}
-
-.footer {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.footer-link {
-  color: var(--text);
-  text-decoration: none;
-  font-weight: bold;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
